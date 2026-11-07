@@ -5,7 +5,7 @@ import (
 )
 
 // go build -ldflags "-X github.com/Novalight-Studios/packman/cmd.Version=1.0.0"
-var Version = "dev"
+var Version = "1.0.0-alpha"
 
 var rootCmd = &cobra.Command{
 	Use: "packman",
