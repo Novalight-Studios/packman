@@ -1,0 +1,35 @@
+version: 2
+
+project_name: packman
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: packman
+    main: ./main.go
+    binary: packman
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X github.com/Novalight-Studios/packman/cmd.Version={{.Version}}
+
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
