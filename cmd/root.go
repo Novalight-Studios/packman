@@ -4,7 +4,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// go build -ldflags "-X github.com/Alfakynz/packman/cmd.Version=1.0.0"
+// go build -ldflags "-X github.com/Novalight-Studios/packman/cmd.Version=1.0.0"
 var Version = "dev"
 
 var rootCmd = &cobra.Command{

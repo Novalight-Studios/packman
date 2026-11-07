@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/Alfakynz/packman/cmd"
+	"github.com/Novalight-Studios/packman/cmd"
 )
 
 func main() {

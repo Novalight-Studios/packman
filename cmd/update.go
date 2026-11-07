@@ -7,8 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Alfakynz/packman/internal/modrinth"
-	"github.com/Alfakynz/packman/internal/pack"
+	"github.com/Novalight-Studios/packman/internal/modrinth"
+	"github.com/Novalight-Studios/packman/internal/pack"
 )
 
 var updateOpts struct {
@@ -79,7 +79,7 @@ var updateCmd = &cobra.Command{
 			return nil
 		}
 
-		src := pack.Sources{Modrinth: modrinth.New("Alfakynz/packman/" + Version)}
+		src := pack.Sources{Modrinth: modrinth.New("Novalight-Studios/packman/" + Version)}
 		needsCF := false
 		for _, t := range targets {
 			if t.mod.CurseForge != nil {

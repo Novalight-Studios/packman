@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Alfakynz/packman/internal/pack"
+	"github.com/Novalight-Studios/packman/internal/pack"
 )
 
 const typeFlagHelp = "all | mod | resourcepack | shader"

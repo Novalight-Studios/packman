@@ -13,8 +13,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/Alfakynz/packman/internal/curseforge"
-	"github.com/Alfakynz/packman/internal/pack"
+	"github.com/Novalight-Studios/packman/internal/curseforge"
+	"github.com/Novalight-Studios/packman/internal/pack"
 )
 
 const overridesDir = "overrides"

@@ -7,9 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Alfakynz/packman/internal/curseforge"
-	"github.com/Alfakynz/packman/internal/modrinth"
-	"github.com/Alfakynz/packman/internal/pack"
+	"github.com/Novalight-Studios/packman/internal/curseforge"
+	"github.com/Novalight-Studios/packman/internal/modrinth"
+	"github.com/Novalight-Studios/packman/internal/pack"
 )
 
 var addOpts struct {
@@ -58,7 +58,7 @@ var addCmd = &cobra.Command{
 			return fmt.Errorf("invalid --source %q (all | modrinth | curseforge)", addOpts.source)
 		}
 		if addOpts.source != "curseforge" {
-			src.Modrinth = modrinth.New("Alfakynz/packman/" + Version)
+			src.Modrinth = modrinth.New("Novalight-Studios/packman/" + Version)
 		}
 		if addOpts.source != "modrinth" {
 			cf, err := newCurseForgeClient()

@@ -1,4 +1,4 @@
-module github.com/Alfakynz/packman
+module github.com/Novalight-Studios/packman
 
 go 1.26.0
 

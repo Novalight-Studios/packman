@@ -7,9 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Alfakynz/packman/internal/curseforge"
-	"github.com/Alfakynz/packman/internal/export"
-	"github.com/Alfakynz/packman/internal/pack"
+	"github.com/Novalight-Studios/packman/internal/curseforge"
+	"github.com/Novalight-Studios/packman/internal/export"
+	"github.com/Novalight-Studios/packman/internal/pack"
 )
 
 var exportOpts struct {

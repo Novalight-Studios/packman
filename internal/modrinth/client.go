@@ -21,7 +21,7 @@ type Client struct {
 }
 
 // New creates a client. Modrinth requires an identifiable User-Agent,
-// e.g. "Alfakynz/packman/1.0.0".
+// e.g. "Novalight-Studios/packman/1.0.0".
 func New(userAgent string) *Client {
 	return &Client{
 		http:      &http.Client{Timeout: 30 * time.Second},

@@ -1,6 +1,6 @@
 package pack
 
-import "github.com/Alfakynz/packman/internal/curseforge"
+import "github.com/Novalight-Studios/packman/internal/curseforge"
 
 // Kind is the type of content an entry of the pack is.
 // The values are the same as Modrinth's project_type.

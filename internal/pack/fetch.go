@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Alfakynz/packman/internal/curseforge"
-	"github.com/Alfakynz/packman/internal/modrinth"
+	"github.com/Novalight-Studios/packman/internal/curseforge"
+	"github.com/Novalight-Studios/packman/internal/modrinth"
 )
 
 // Largest file downloaded to match it on the other platform by fingerprint.

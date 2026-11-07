@@ -11,8 +11,8 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
-	"github.com/Alfakynz/packman/internal/config"
-	"github.com/Alfakynz/packman/internal/curseforge"
+	"github.com/Novalight-Studios/packman/internal/config"
+	"github.com/Novalight-Studios/packman/internal/curseforge"
 )
 
 var authCmd = &cobra.Command{

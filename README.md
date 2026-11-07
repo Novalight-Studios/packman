@@ -102,13 +102,13 @@ Each entry has a `modrinth` and a `curseforge` block, so both export formats can
 ### 👤 For users
 
 ```sh
-go install github.com/Alfakynz/packman@latest
+go install github.com/Novalight-Studios/packman@latest
 ```
 
 ### 👨‍💻 For devs
 
 ```sh
-git clone https://github.com/Alfakynz/packman.git
+git clone https://github.com/Novalight-Studios/packman.git
 cd packman
 ```
 

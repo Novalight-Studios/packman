@@ -3,8 +3,8 @@ package export
 import (
 	"errors"
 
-	"github.com/Alfakynz/packman/internal/download"
-	"github.com/Alfakynz/packman/internal/pack"
+	"github.com/Novalight-Studios/packman/internal/download"
+	"github.com/Novalight-Studios/packman/internal/pack"
 )
 
 var mrLoaderKey = map[string]string{
