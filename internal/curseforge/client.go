@@ -301,3 +301,33 @@ func (f File) RequiredMods() []int {
 	}
 	return ids
 }
+
+// WebsiteURLs returns the page URL of several mods at once, by mod ID.
+func (c *Client) WebsiteURLs(ids []int) (map[int]string, error) {
+	const batch = 50
+	urls := make(map[int]string, len(ids))
+
+	for start := 0; start < len(ids); start += batch {
+		end := start + batch
+		if end > len(ids) {
+			end = len(ids)
+		}
+
+		var resp struct {
+			Data []struct {
+				ID    int `json:"id"`
+				Links struct {
+					WebsiteURL string `json:"websiteUrl"`
+				} `json:"links"`
+			} `json:"data"`
+		}
+		body := map[string]any{"modIds": ids[start:end]}
+		if err := c.do(http.MethodPost, "/mods", nil, body, &resp); err != nil {
+			return nil, err
+		}
+		for _, m := range resp.Data {
+			urls[m.ID] = m.Links.WebsiteURL
+		}
+	}
+	return urls, nil
+}
