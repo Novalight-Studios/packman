@@ -18,6 +18,7 @@ var addOpts struct {
 	modrinthSlug   string
 	curseforgeSlug string
 	noDeps         bool
+	force          bool
 }
 
 var addCmd = &cobra.Command{
@@ -26,6 +27,8 @@ var addCmd = &cobra.Command{
 	Long: "Adds content by slug, looking it up on Modrinth and CurseForge. The type\n" +
 		"(mod, resource pack or shader) is detected automatically; use --type to restrict it.\n" +
 		"Required dependencies are added too (use --no-deps to skip them).\n" +
+		"Nothing compatible with the Minecraft version or loader of the pack? --force adds the\n" +
+		"newest version anyway, with a warning.\n" +
 		"CurseForge needs an API key: run `packman auth curseforge` (or set " + curseforge.EnvKey + ");\n" +
 		"without it, only Modrinth is used.\n\n" +
 		"If something has a different slug on each platform, packman tries to match it\n" +
@@ -34,6 +37,7 @@ var addCmd = &cobra.Command{
 		"  packman add sodium lithium iris complementary-reimagined\n" +
 		"  packman add faithful-32x --type resourcepack\n" +
 		"  packman add sodium --source modrinth --no-deps\n" +
+		"  packman add some-old-mod --force\n" +
 		"  packman add ferrite-core --curseforge-slug ferritecore-fabric",
 	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -71,7 +75,7 @@ var addCmd = &cobra.Command{
 				return err
 			}
 		}
-		opts := pack.Options{Kind: kind, Modrinth: addOpts.modrinthSlug, CurseForge: addOpts.curseforgeSlug}
+		opts := pack.Options{Kind: kind, Modrinth: addOpts.modrinthSlug, CurseForge: addOpts.curseforgeSlug, Force: addOpts.force}
 
 		var errs []error
 		changed := false
@@ -81,7 +85,7 @@ var addCmd = &cobra.Command{
 			if addOpts.noDeps || len(deps) == 0 {
 				return
 			}
-			added, problems := pack.AddDeps(src, p, deps)
+			added, problems := pack.AddDeps(src, p, deps, addOpts.force)
 			for _, a := range added {
 				changed = true
 				fmt.Fprintf(out, "  + %s [%s] (%s), required by %s\n",
@@ -141,4 +145,5 @@ func init() {
 	f.StringVar(&addOpts.modrinthSlug, "modrinth-slug", "", "slug on Modrinth, if different")
 	f.StringVar(&addOpts.curseforgeSlug, "curseforge-slug", "", "slug on CurseForge, if different")
 	f.BoolVar(&addOpts.noDeps, "no-deps", false, "don't add required dependencies")
+	f.BoolVar(&addOpts.force, "force", false, "add the newest version even if none is compatible with the pack")
 }

@@ -80,6 +80,7 @@ type File struct {
 	FileDate    time.Time `json:"fileDate"`
 	ReleaseType int       `json:"releaseType"`
 	IsAvailable bool      `json:"isAvailable"`
+	GameVersions []string `json:"gameVersions"` // Minecraft versions and loaders
 	Dependencies []struct {
 		ModID        int `json:"modId"`
 		RelationType int `json:"relationType"` // 3 = required dependency
@@ -186,33 +187,86 @@ func (c *Client) ModIDByFingerprint(fingerprint uint32) (int, error) {
 	return 0, ErrNotFound
 }
 
+// ErrNoFile is returned when a mod has no file matching the filters.
+var ErrNoFile = errors.New("no file")
+
 // LatestFile returns the newest file compatible with the given Minecraft
 // version and loader, preferring stable releases over alpha/beta.
 func (c *Client) LatestFile(modID int, mcVersion, loader string) (*File, error) {
-	q := url.Values{}
-	q.Set("gameVersion", mcVersion)
-	q.Set("pageSize", "50")
+	files, err := c.files(modID, mcVersion, loader)
+	if err != nil {
+		return nil, err
+	}
+	if f := newestFile(files); f != nil {
+		return f, nil
+	}
 	target := "Minecraft " + mcVersion
+	if loader != "" {
+		target += " with " + loader
+	}
+	return nil, fmt.Errorf("%w for %s", ErrNoFile, target)
+}
+
+// LatestFileAny is LatestFile without the compatibility requirement.
+// If nothing matches, it relaxes the filters step by step (the same loader on
+// any Minecraft version, then any file at all) and returns the newest file
+// found. exact tells whether the file matches the filters.
+func (c *Client) LatestFileAny(modID int, mcVersion, loader string) (f *File, exact bool, err error) {
+	f, err = c.LatestFile(modID, mcVersion, loader)
+	if !errors.Is(err, ErrNoFile) {
+		return f, true, err
+	}
+
+	if loader != "" {
+		files, err := c.files(modID, "", loader)
+		if err != nil {
+			return nil, false, err
+		}
+		if f := newestFile(files); f != nil {
+			return f, false, nil
+		}
+	}
+	files, err := c.files(modID, "", "")
+	if err != nil {
+		return nil, false, err
+	}
+	if f := newestFile(files); f != nil {
+		return f, false, nil
+	}
+	return nil, false, fmt.Errorf("%w at all", ErrNoFile)
+}
+
+// files lists the files of a mod. An empty mcVersion or loader means "no filter".
+func (c *Client) files(modID int, mcVersion, loader string) ([]File, error) {
+	q := url.Values{}
+	q.Set("pageSize", "50")
+	if mcVersion != "" {
+		q.Set("gameVersion", mcVersion)
+	}
 	if loader != "" { // resource packs and shaders have no mod loader
 		loaderType, ok := loaderTypes[loader]
 		if !ok {
 			return nil, fmt.Errorf("unknown loader %q", loader)
 		}
 		q.Set("modLoaderType", strconv.Itoa(loaderType))
-		target += " with " + loader
 	}
 
 	var resp struct {
 		Data []File `json:"data"`
 	}
-	if err := c.do(http.MethodGet, "/mods/"+strconv.Itoa(modID)+"/files", q, nil, &resp); err != nil {
+	path := "/mods/" + strconv.Itoa(modID) + "/files"
+	if err := c.do(http.MethodGet, path, q, nil, &resp); err != nil {
 		return nil, err
 	}
+	return resp.Data, nil
+}
 
-	// The API doesn't guarantee any order: pick by date ourselves.
-	var newestRelease, newest *File
-	for i := range resp.Data {
-		f := &resp.Data[i]
+// newestFile picks the newest available stable release, or else the newest
+// available file. The API doesn't guarantee any order: it goes by date.
+func newestFile(files []File) *File {
+	var newest, newestRelease *File
+	for i := range files {
+		f := &files[i]
 		if !f.IsAvailable {
 			continue
 		}
@@ -224,13 +278,10 @@ func (c *Client) LatestFile(modID int, mcVersion, loader string) (*File, error) 
 			newestRelease = f
 		}
 	}
-	switch {
-	case newestRelease != nil:
-		return newestRelease, nil
-	case newest != nil:
-		return newest, nil
+	if newestRelease != nil {
+		return newestRelease
 	}
-	return nil, fmt.Errorf("no file for %s", target)
+	return newest
 }
 
 func (c *Client) do(method, path string, q url.Values, body, out any) error {

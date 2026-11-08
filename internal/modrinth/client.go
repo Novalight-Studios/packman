@@ -58,6 +58,8 @@ type Version struct {
 	VersionType   string       `json:"version_type"` // release | beta | alpha
 	Files         []File       `json:"files"`
 	Dependencies  []Dependency `json:"dependencies"`
+	GameVersions  []string     `json:"game_versions"`
+	Loaders       []string     `json:"loaders"`
 }
 
 // Dependency is a link from a version to another project.
@@ -99,32 +101,78 @@ func (c *Client) Project(slugOrID string) (*Project, error) {
 	return &p, nil
 }
 
+// ErrNoVersion is returned when a project has no version matching the filters.
+var ErrNoVersion = errors.New("no version")
+
 // LatestVersion returns the newest version compatible with the given
 // Minecraft version and loader, preferring stable releases over alpha/beta.
 func (c *Client) LatestVersion(projectID, mcVersion, loader string) (*Version, error) {
-	q := url.Values{}
-	q.Set("game_versions", fmt.Sprintf("[%q]", mcVersion))
-	if loader != "" { // resource packs and shaders have no mod loader
-		q.Set("loaders", fmt.Sprintf("[%q]", loader))
-	}
-
-	var versions []Version
-	if err := c.get("/project/"+url.PathEscape(projectID)+"/version", q, &versions); err != nil {
+	versions, err := c.versions(projectID, mcVersion, loader)
+	if err != nil {
 		return nil, err
 	}
 	if len(versions) == 0 {
 		if loader == "" {
-			return nil, fmt.Errorf("no version for Minecraft %s", mcVersion)
+			return nil, fmt.Errorf("%w for Minecraft %s", ErrNoVersion, mcVersion)
 		}
-		return nil, fmt.Errorf("no version for Minecraft %s with %s", mcVersion, loader)
+		return nil, fmt.Errorf("%w for Minecraft %s with %s", ErrNoVersion, mcVersion, loader)
 	}
-	// The API returns the newest first.
+	return newest(versions), nil
+}
+
+// LatestVersionAny is LatestVersion without the compatibility requirement.
+// If nothing matches, it relaxes the filters step by step (the same loader on
+// any Minecraft version, then any version at all) and returns the newest
+// version found. exact tells whether the version matches the filters.
+func (c *Client) LatestVersionAny(projectID, mcVersion, loader string) (v *Version, exact bool, err error) {
+	v, err = c.LatestVersion(projectID, mcVersion, loader)
+	if !errors.Is(err, ErrNoVersion) {
+		return v, true, err
+	}
+
+	if loader != "" {
+		versions, err := c.versions(projectID, "", loader)
+		if err != nil {
+			return nil, false, err
+		}
+		if len(versions) > 0 {
+			return newest(versions), false, nil
+		}
+	}
+	versions, err := c.versions(projectID, "", "")
+	if err != nil {
+		return nil, false, err
+	}
+	if len(versions) == 0 {
+		return nil, false, fmt.Errorf("%w at all", ErrNoVersion)
+	}
+	return newest(versions), false, nil
+}
+
+// versions lists the versions of a project, newest first. An empty
+// mcVersion or loader means "no filter".
+func (c *Client) versions(projectID, mcVersion, loader string) ([]Version, error) {
+	q := url.Values{}
+	if mcVersion != "" {
+		q.Set("game_versions", fmt.Sprintf("[%q]", mcVersion))
+	}
+	if loader != "" { // resource packs and shaders have no mod loader
+		q.Set("loaders", fmt.Sprintf("[%q]", loader))
+	}
+	var versions []Version
+	err := c.get("/project/"+url.PathEscape(projectID)+"/version", q, &versions)
+	return versions, err
+}
+
+// newest picks the first stable release, or else the first version
+// (the API returns the newest first).
+func newest(versions []Version) *Version {
 	for i := range versions {
 		if versions[i].VersionType == "release" {
-			return &versions[i], nil
+			return &versions[i]
 		}
 	}
-	return &versions[0], nil
+	return &versions[0]
 }
 
 func (c *Client) get(path string, q url.Values, out any) error {

@@ -15,7 +15,7 @@ import (
 // skipped.
 func UpdateEntry(s Sources, p *Pack, kind Kind, m *Mod) (changes, problems []string, deps []Dep) {
 	if m.Modrinth != nil && s.Modrinth != nil {
-		fresh, err := fetchModrinth(s.Modrinth, p, m.Modrinth.ProjectID, kind)
+		fresh, err := fetchModrinth(s.Modrinth, p, m.Modrinth.ProjectID, kind, false)
 		if err != nil {
 			problems = append(problems, "Modrinth: "+err.Error())
 		} else {
@@ -33,7 +33,7 @@ func UpdateEntry(s Sources, p *Pack, kind Kind, m *Mod) (changes, problems []str
 		mod, err := s.CurseForge.ModByID(m.CurseForge.ProjectID)
 		var fresh *found
 		if err == nil {
-			fresh, err = curseForgeMod(s.CurseForge, p, mod, kind)
+			fresh, err = curseForgeMod(s.CurseForge, p, mod, kind, false)
 		}
 		if err != nil {
 			problems = append(problems, "CurseForge: "+err.Error())

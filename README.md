@@ -12,6 +12,7 @@ Made for creators who publish the same modpack on Modrinth and CurseForge, witho
 - Create a new modpack
 - Add mods, resource packs and shaders by slug (the type is detected automatically)
 - Required dependencies are added along with the content that needs them
+- Add content even if it isn't compatible with the modpack (`--force`)
 - Find the same project on both platforms, even when its slug is different (matched through the file itself, or with `--modrinth-slug` / `--curseforge-slug`)
 - Remove mods, resource packs and shaders from the modpack
 - Update everything to its latest version (dry run supported)
@@ -27,7 +28,7 @@ Made for creators who publish the same modpack on Modrinth and CurseForge, witho
 | Command                    | Description                                                                                                                 |
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `packman init`             | Create a new modpack in the current directory (`--name`, `--mc`, `--loader`, `--loader-version`, `--version`)               |
-| `packman add <name>...`    | Add mods, resource packs or shaders (`--type`, `--source`, `--no-deps`, `--modrinth-slug`, `--curseforge-slug`)             |
+| `packman add <name>...`    | Add mods, resource packs or shaders (`--type`, `--source`, `--no-deps`, `--modrinth-slug`, `--curseforge-slug`, `--force`)  |
 | `packman remove <name>...` | Remove content from the modpack (alias: `rm`, `--type`)                                                                     |
 | `packman update [name]...` | Update content to its latest version (`--type`, `--dry-run`, `--no-deps`)                                                   |
 | `packman export`           | Export the modpack for Modrinth and CurseForge (`--format`, `--output`, `--skip-missing`)                                   |

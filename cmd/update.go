@@ -119,7 +119,7 @@ var updateCmd = &cobra.Command{
 		var added []pack.Added
 		if !updateOpts.noDeps {
 			var problems []string
-			added, problems = pack.AddDeps(src, p, allDeps)
+			added, problems = pack.AddDeps(src, p, allDeps, false)
 			for _, a := range added {
 				fmt.Fprintf(out, "+ %s [%s] (%s), required by %s\n",
 					a.Mod.Name, a.Kind.Label(), strings.Join(a.Mod.Platforms(), ", "), a.Required)

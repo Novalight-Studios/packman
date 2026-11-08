@@ -17,11 +17,12 @@ type Added struct {
 // and so on. A dependency is looked up on every enabled platform, like any
 // other entry. Those that can't be resolved (no version for the pack's
 // Minecraft version, for instance) are reported in problems and don't stop
-// the others.
+// the others. With force, a dependency without any compatible version is
+// added with its newest one, like the entry that needs it.
 //
 // It appends to the pack's lists: call it once the loop that holds pointers
 // to entries (Find, Items) is over.
-func AddDeps(s Sources, p *Pack, deps []Dep) (added []Added, problems []string) {
+func AddDeps(s Sources, p *Pack, deps []Dep, force bool) (added []Added, problems []string) {
 	visited := map[string]bool{}
 	queue := append([]Dep(nil), deps...)
 
@@ -43,7 +44,7 @@ func AddDeps(s Sources, p *Pack, deps []Dep) (added []Added, problems []string) 
 			problems = append(problems, fmt.Sprintf("dependency %s %s of %s: %v", d.Platform, d.ID, d.By, err))
 			continue
 		}
-		res, err := Resolve(s, p, slug, Options{Kind: kind})
+		res, err := Resolve(s, p, slug, Options{Kind: kind, Force: force})
 		if err != nil {
 			problems = append(problems, fmt.Sprintf("dependency %s of %s: %v", slug, d.By, err))
 			continue

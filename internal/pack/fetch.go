@@ -29,6 +29,10 @@ type Options struct {
 	Kind       Kind   // empty: detect (mod, resource pack or shader)
 	Modrinth   string // slug on Modrinth, if different from the one given
 	CurseForge string // slug on CurseForge, if different from the one given
+
+	// Force accepts an entry that has no version compatible with the pack's
+	// Minecraft version or loader: the newest version is used, with a warning.
+	Force bool
 }
 
 // Dep is a required dependency of an entry: it has to be in the pack too.
@@ -48,10 +52,11 @@ type Result struct {
 
 // found is what a lookup on one platform brings back.
 type found struct {
-	mod  *Mod
-	kind Kind
-	deps []Dep
-	sha1 string // sha1 of the chosen CurseForge file, to match it on Modrinth
+	mod   *Mod
+	kind  Kind
+	deps  []Dep
+	sha1  string   // sha1 of the chosen CurseForge file, to match it on Modrinth
+	notes []string // e.g. the version was forced
 }
 
 // Resolve looks an entry up on every enabled platform and merges the results
@@ -68,7 +73,7 @@ func Resolve(s Sources, p *Pack, slug string, o Options) (*Result, error) {
 	kind := o.Kind
 
 	if s.Modrinth != nil {
-		mr, mrErr = fetchModrinth(s.Modrinth, p, firstNonEmpty(o.Modrinth, slug), kind)
+		mr, mrErr = fetchModrinth(s.Modrinth, p, firstNonEmpty(o.Modrinth, slug), kind, o.Force)
 		if mr != nil {
 			kind = mr.kind // restricts the CurseForge search to the same type
 		}
@@ -78,13 +83,13 @@ func Resolve(s Sources, p *Pack, slug string, o Options) (*Result, error) {
 		if o.CurseForge == "" && mr != nil {
 			cfSlug = mr.mod.Slug // canonical slug: the user may have given an ID
 		}
-		cf, cfErr = fetchCurseForge(s.CurseForge, p, cfSlug, kind)
+		cf, cfErr = fetchCurseForge(s.CurseForge, p, cfSlug, kind, o.Force)
 	}
 
 	// Found on Modrinth only -> look for the same file on CurseForge.
 	if mr != nil && cf == nil && s.CurseForge != nil && o.CurseForge == "" &&
 		errors.Is(cfErr, curseforge.ErrNotFound) {
-		m, err := matchOnCurseForge(s.CurseForge, p, mr)
+		m, err := matchOnCurseForge(s.CurseForge, p, mr, o.Force)
 		switch {
 		case err == nil:
 			cf, cfErr = m, nil
@@ -95,7 +100,7 @@ func Resolve(s Sources, p *Pack, slug string, o Options) (*Result, error) {
 	// Found on CurseForge only -> look for the same file on Modrinth.
 	if cf != nil && mr == nil && s.Modrinth != nil && o.Modrinth == "" &&
 		errors.Is(mrErr, modrinth.ErrNotFound) {
-		m, err := matchOnModrinth(s.Modrinth, p, cf.sha1, cf.kind)
+		m, err := matchOnModrinth(s.Modrinth, p, cf.sha1, cf.kind, o.Force)
 		switch {
 		case err == nil:
 			mr, mrErr = m, nil
@@ -104,26 +109,32 @@ func Resolve(s Sources, p *Pack, slug string, o Options) (*Result, error) {
 		}
 	}
 
-	var problems []string
+	var warnings []string
 	if mrErr != nil {
-		problems = append(problems, describe("Modrinth", mrErr, modrinth.ErrNotFound, "--modrinth-slug"))
+		warnings = append(warnings, describe("Modrinth", mrErr, modrinth.ErrNotFound, "--modrinth-slug"))
 	}
 	if cfErr != nil {
-		problems = append(problems, describe("CurseForge", cfErr, curseforge.ErrNotFound, "--curseforge-slug"))
+		warnings = append(warnings, describe("CurseForge", cfErr, curseforge.ErrNotFound, "--curseforge-slug"))
+	}
+	if mr != nil {
+		warnings = append(warnings, mr.notes...)
+	}
+	if cf != nil {
+		warnings = append(warnings, cf.notes...)
 	}
 
 	switch {
 	case mr != nil && cf != nil:
 		mr.mod.CurseForge = cf.mod.CurseForge
-		return &Result{Mod: mr.mod, Kind: mr.kind, Deps: append(mr.deps, cf.deps...)}, nil
+		return &Result{Mod: mr.mod, Kind: mr.kind, Deps: append(mr.deps, cf.deps...), Warnings: warnings}, nil
 	case mr != nil:
-		return &Result{Mod: mr.mod, Kind: mr.kind, Deps: mr.deps, Warnings: problems}, nil
+		return &Result{Mod: mr.mod, Kind: mr.kind, Deps: mr.deps, Warnings: warnings}, nil
 	case cf != nil:
-		return &Result{Mod: cf.mod, Kind: cf.kind, Deps: cf.deps, Warnings: problems}, nil
-	case len(problems) == 0:
+		return &Result{Mod: cf.mod, Kind: cf.kind, Deps: cf.deps, Warnings: warnings}, nil
+	case len(warnings) == 0:
 		return nil, errors.New("no platform enabled")
 	}
-	return nil, errors.New(strings.Join(problems, "; "))
+	return nil, errors.New(strings.Join(warnings, "; "))
 }
 
 func firstNonEmpty(a, b string) string {
@@ -141,10 +152,41 @@ func describe(platform string, err, notFound error, flag string) string {
 	return platform + ": " + err.Error()
 }
 
+// target describes what a pack asks for, for messages.
+func target(mcVersion, loader string) string {
+	if loader == "" {
+		return "Minecraft " + mcVersion
+	}
+	return "Minecraft " + mcVersion + " / " + loader
+}
+
+func listUpTo(items []string, max int) string {
+	if len(items) > max {
+		return strings.Join(items[:max], ", ") + ", …"
+	}
+	return strings.Join(items, ", ")
+}
+
+// supports lists what a forced version is made for.
+func supports(gameVersions, loaders []string) string {
+	var parts []string
+	if len(gameVersions) > 0 {
+		parts = append(parts, listUpTo(gameVersions, 6))
+	}
+	if len(loaders) > 0 {
+		parts = append(parts, listUpTo(loaders, 4))
+	}
+	if len(parts) == 0 {
+		return "unknown"
+	}
+	return strings.Join(parts, "; ")
+}
+
 // fetchModrinth resolves a project on Modrinth (slug or project ID) for the
 // pack's Minecraft version and loader. want restricts the type (empty: any
-// supported type). The CurseForge block is left empty.
-func fetchModrinth(c *modrinth.Client, p *Pack, slug string, want Kind) (*found, error) {
+// supported type). With force, the newest version is taken when none is
+// compatible. The CurseForge block is left empty.
+func fetchModrinth(c *modrinth.Client, p *Pack, slug string, want Kind, force bool) (*found, error) {
 	proj, err := c.Project(slug)
 	if err != nil {
 		return nil, err
@@ -157,10 +199,27 @@ func fetchModrinth(c *modrinth.Client, p *Pack, slug string, want Kind) (*found,
 		return nil, fmt.Errorf("%q is a %s, not a %s", proj.Slug, kind.Label(), want.Label())
 	}
 
-	ver, err := c.LatestVersion(proj.ID, p.MCVersion, kind.loader(p))
-	if err != nil {
-		return nil, err
+	loader := kind.loader(p)
+	var ver *modrinth.Version
+	var notes []string
+	if force {
+		v, exact, err := c.LatestVersionAny(proj.ID, p.MCVersion, loader)
+		if err != nil {
+			return nil, err
+		}
+		ver = v
+		if !exact {
+			notes = append(notes, fmt.Sprintf("Modrinth: no version for %s, forced %s (made for %s)",
+				target(p.MCVersion, loader), ver.VersionNumber, supports(ver.GameVersions, ver.Loaders)))
+		}
+	} else {
+		v, err := c.LatestVersion(proj.ID, p.MCVersion, loader)
+		if err != nil {
+			return nil, err
+		}
+		ver = v
 	}
+
 	file, ok := ver.PrimaryFile()
 	if !ok {
 		return nil, errors.New("this version has no file")
@@ -172,8 +231,9 @@ func fetchModrinth(c *modrinth.Client, p *Pack, slug string, want Kind) (*found,
 	}
 
 	return &found{
-		kind: kind,
-		deps: deps,
+		kind:  kind,
+		deps:  deps,
+		notes: notes,
 		mod: &Mod{
 			Slug: proj.Slug,
 			Name: proj.Title,
@@ -192,15 +252,15 @@ func fetchModrinth(c *modrinth.Client, p *Pack, slug string, want Kind) (*found,
 
 // fetchCurseForge resolves a project on CurseForge by slug. want restricts the
 // type (empty: any supported type). The Modrinth block is left empty.
-func fetchCurseForge(c *curseforge.Client, p *Pack, slug string, want Kind) (*found, error) {
+func fetchCurseForge(c *curseforge.Client, p *Pack, slug string, want Kind, force bool) (*found, error) {
 	mod, err := c.FindModBySlug(slug, want.curseForgeClass())
 	if err != nil {
 		return nil, err
 	}
-	return curseForgeMod(c, p, mod, want)
+	return curseForgeMod(c, p, mod, want, force)
 }
 
-func curseForgeMod(c *curseforge.Client, p *Pack, mod *curseforge.Mod, want Kind) (*found, error) {
+func curseForgeMod(c *curseforge.Client, p *Pack, mod *curseforge.Mod, want Kind, force bool) (*found, error) {
 	kind := want
 	if kind == "" {
 		kind = kindFromClass(mod.ClassID)
@@ -208,9 +268,26 @@ func curseForgeMod(c *curseforge.Client, p *Pack, mod *curseforge.Mod, want Kind
 	if !kind.Valid() {
 		return nil, fmt.Errorf("%q isn't a mod, resource pack or shader", mod.Slug)
 	}
-	file, err := c.LatestFile(mod.ID, p.MCVersion, kind.loader(p))
-	if err != nil {
-		return nil, err
+
+	loader := kind.loader(p)
+	var file *curseforge.File
+	var notes []string
+	if force {
+		f, exact, err := c.LatestFileAny(mod.ID, p.MCVersion, loader)
+		if err != nil {
+			return nil, err
+		}
+		file = f
+		if !exact {
+			notes = append(notes, fmt.Sprintf("CurseForge: no file for %s, forced %s (made for %s)",
+				target(p.MCVersion, loader), file.FileName, supports(file.GameVersions, nil)))
+		}
+	} else {
+		f, err := c.LatestFile(mod.ID, p.MCVersion, loader)
+		if err != nil {
+			return nil, err
+		}
+		file = f
 	}
 
 	var deps []Dep
@@ -219,9 +296,10 @@ func curseForgeMod(c *curseforge.Client, p *Pack, mod *curseforge.Mod, want Kind
 	}
 
 	return &found{
-		kind: kind,
-		deps: deps,
-		sha1: file.SHA1(),
+		kind:  kind,
+		deps:  deps,
+		sha1:  file.SHA1(),
+		notes: notes,
 		mod: &Mod{
 			Slug: mod.Slug,
 			Name: mod.Name,
@@ -237,7 +315,7 @@ func curseForgeMod(c *curseforge.Client, p *Pack, mod *curseforge.Mod, want Kind
 
 // matchOnCurseForge downloads the Modrinth file and asks CurseForge which
 // project it belongs to, through its fingerprint.
-func matchOnCurseForge(c *curseforge.Client, p *Pack, mr *found) (*found, error) {
+func matchOnCurseForge(c *curseforge.Client, p *Pack, mr *found, force bool) (*found, error) {
 	if mr.mod.Modrinth == nil || len(mr.mod.Modrinth.Downloads) == 0 {
 		return nil, curseforge.ErrNotFound
 	}
@@ -256,11 +334,11 @@ func matchOnCurseForge(c *curseforge.Client, p *Pack, mr *found) (*found, error)
 	if err != nil {
 		return nil, err
 	}
-	return curseForgeMod(c, p, mod, mr.kind)
+	return curseForgeMod(c, p, mod, mr.kind, force)
 }
 
 // matchOnModrinth asks Modrinth which version a CurseForge file is, by sha1.
-func matchOnModrinth(c *modrinth.Client, p *Pack, sha1Hex string, want Kind) (*found, error) {
+func matchOnModrinth(c *modrinth.Client, p *Pack, sha1Hex string, want Kind, force bool) (*found, error) {
 	if sha1Hex == "" {
 		return nil, modrinth.ErrNotFound
 	}
@@ -268,7 +346,7 @@ func matchOnModrinth(c *modrinth.Client, p *Pack, sha1Hex string, want Kind) (*f
 	if err != nil {
 		return nil, err
 	}
-	return fetchModrinth(c, p, ver.ProjectID, want)
+	return fetchModrinth(c, p, ver.ProjectID, want, force)
 }
 
 // download fetches a file in memory and checks it against its sha1.
